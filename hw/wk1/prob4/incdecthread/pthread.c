@@ -45,9 +45,6 @@ void *decThread(void *threadp)
     }
 }
 
-
-
-
 int main (int argc, char *argv[])
 {
    int rc;

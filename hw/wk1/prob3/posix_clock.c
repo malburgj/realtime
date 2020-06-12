@@ -59,33 +59,23 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
   int dt_sec=stop->tv_sec - start->tv_sec;
   int dt_nsec=stop->tv_nsec - start->tv_nsec;
 
-  if(dt_sec >= 0)
-  {
-    if(dt_nsec >= 0)
-    {
+  if(dt_sec >= 0) {
+    if(dt_nsec >= 0) {
       delta_t->tv_sec=dt_sec;
       delta_t->tv_nsec=dt_nsec;
+    } else {
+      delta_t->tv_sec=dt_sec-1;
+      delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
     }
-    else
-    {
+  } else {
+    if(dt_nsec >= 0) {
+      delta_t->tv_sec=dt_sec;
+      delta_t->tv_nsec=dt_nsec;
+    } else {
       delta_t->tv_sec=dt_sec-1;
       delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
     }
   }
-  else
-  {
-    if(dt_nsec >= 0)
-    {
-      delta_t->tv_sec=dt_sec;
-      delta_t->tv_nsec=dt_nsec;
-    }
-    else
-    {
-      delta_t->tv_sec=dt_sec-1;
-      delta_t->tv_nsec=NSEC_PER_SEC+dt_nsec;
-    }
-  }
-
   return(OK);
 }
 
