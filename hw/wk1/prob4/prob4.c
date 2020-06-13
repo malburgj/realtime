@@ -64,6 +64,7 @@ typedef struct
 int calc_dt(struct timespec *stop, struct timespec *start, struct timespec *delta_t);
 int set_attr_policy(pthread_attr_t *attr, int policy, uint8_t priorityOffset);
 int set_main_policy(int policy, uint8_t priorityOffset);
+void print_scheduler(void);
 
 /*---------------------------------------------------------------------------------*/
 /* GLOBAL VARIABLES */
@@ -126,8 +127,10 @@ int main(int argc, char *argv[])
   sem_t thread_sem[NUM_THREADS];
   pthread_attr_t thread_attr[NUM_THREADS];
 
-  /* set scheduling policy of main */  
+  /* set scheduling policy of main */
+  print_scheduler();
   set_main_policy(SCHED_FIFO, 0);
+  print_scheduler();
 
   /*----------------------------------------------*/
   /* create threads and semaphores ...
@@ -292,8 +295,8 @@ int set_main_policy(int policy, uint8_t priorityOffset)
   /* this sets the policy/priority for our process */
   rtnCode = sched_getparam(getpid(), &param);
   if (rtnCode) {
-    printf("ERROR: sched_setscheduler rc is %d\n", rtnCode);
-    perror("sched_setscheduler");
+    printf("ERROR: sched_getparam (in set_main_policy)  rc is %d\n", rtnCode);
+    perror("sched_getparam");
     return -1;
   }
 
@@ -301,7 +304,7 @@ int set_main_policy(int policy, uint8_t priorityOffset)
   param.sched_priority = sched_get_priority_max(policy) - priorityOffset;
   rtnCode = sched_setscheduler(getpid(), policy, &param);
   if (rtnCode) {
-    printf("ERROR: sched_setscheduler rc is %d\n", rtnCode);
+    printf("ERROR: sched_setscheduler (in set_main_policy) rc is %d\n", rtnCode);
     perror("sched_setscheduler");
     return -1;
   }
