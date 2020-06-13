@@ -22,6 +22,8 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include <errno.h>
+#include <string.h>
 
 /*---------------------------------------------------------------------------------*/
 /* MACROS / TYPES / CONST */
@@ -272,7 +274,7 @@ int set_attr_policy(pthread_attr_t *attr, int policy, uint8_t priorityOffset)
   param.sched_priority = sched_get_priority_max(policy) - priorityOffset;
   rtnCode |= pthread_attr_setschedparam(attr, &param);
   if (rtnCode) {
-    printf("ERROR: set_attr_policy");
+    printf("ERROR: set_attr_policy, errno: %s\n", strerror(errno));
     return -1;
   }
   return 0;
@@ -295,8 +297,7 @@ int set_main_policy(int policy, uint8_t priorityOffset)
   /* this sets the policy/priority for our process */
   rtnCode = sched_getparam(getpid(), &param);
   if (rtnCode) {
-    printf("ERROR: sched_getparam (in set_main_policy)  rc is %d\n", rtnCode);
-    perror("sched_getparam");
+    printf("ERROR: sched_getparam (in set_main_policy)  rc is %d, errno: %s\n", rtnCode, strerror(errno));
     return -1;
   }
 
@@ -304,8 +305,7 @@ int set_main_policy(int policy, uint8_t priorityOffset)
   param.sched_priority = sched_get_priority_max(policy) - priorityOffset;
   rtnCode = sched_setscheduler(getpid(), policy, &param);
   if (rtnCode) {
-    printf("ERROR: sched_setscheduler (in set_main_policy) rc is %d\n", rtnCode);
-    perror("sched_setscheduler");
+    printf("ERROR: sched_setscheduler (in set_main_policy) rc is %d, errno: %s\n", rtnCode, strerror(errno));
     return -1;
   }
   return 0;
