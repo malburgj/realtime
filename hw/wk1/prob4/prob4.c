@@ -243,7 +243,7 @@ int set_attr_policy(pthread_attr_t *attr, int policy, uint8_t priorityOffset)
   int max_prio;
   int min_prio;
   struct sched_param param;
-  int rtnCode;
+  int rtnCode = 0;
 
   if(policy < 0) {
     printf("ERROR: invalid policy #: %d\n", policy);
