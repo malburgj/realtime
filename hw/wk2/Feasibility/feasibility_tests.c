@@ -62,7 +62,7 @@ int main(void)
 
   printf("******** Completion Test Feasibility Example\n");
 
-  #define NUM_TST 5
+  #define NUM_TST 11
   U32_T *period[] = {  ex0_period, ex1_period, ex2_period, ex3_period, ex4_period, ex5_period, ex6_period, ex7_period, ex8_period, ex9_period, ex10_period};
   U32_T *wcet[]   = {  ex0_wcet,   ex1_wcet,   ex2_wcet,   ex3_wcet,   ex4_wcet,   ex5_wcet,   ex6_wcet,   ex7_wcet,   ex8_wcet,   ex9_wcet,   ex10_wcet};
   uint32_t num[]  = {  ex0_numSer, ex1_numSer, ex2_numSer, ex3_numSer, ex4_numSer, ex5_numSer, ex6_numSer, ex7_numSer, ex8_numSer, ex9_numSer, ex10_numSer};
