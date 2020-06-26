@@ -68,78 +68,93 @@ Attitude_t data;
 void *subWorker(void *arg)
 {
   if(arg == NULL) {
-    printf("ERROR: invalid arg provided to %s", __func__);
+    printf("ERROR: invalid arg provided to %s\n", __func__);
     return NULL;
   }
 
   /* get thread parameters */
   threadParams_t *threadParams = (threadParams_t *)arg;
   if(threadParams->pMutex == NULL) {
-    printf("ERROR: invalid mutex provided to %s", __func__);
+    printf("ERROR: invalid mutex provided to %s\n", __func__);
     return NULL;
   }
+  printf("%s started ...\n", __func__);
 
-  int cnt = 0;
+  Attitude_t local_data;
+  memset(&local_data, 0, sizeof(local_data));
+
+  struct timespec readTime;
+  uint64_t prev_timestamp_ns = 0;
   while (!gAbortTest) {
-    Attitude_t local_data;
+    /* try to get lock; if locked, wait because its critical
+     * we don't miss data; could also do trylock here if 
+     * we can just use most recent data */
+    if(pthread_mutex_lock(threadParams->pMutex) == 0) {
+      /* copy data */
+      local_data.pitch = data.pitch;
+      local_data.timestamp_ns = data.timestamp_ns;
 
-    /* wait for new state data */
-    pthread_mutex_lock(threadParams->pMutex);
+      /* unlock shared data */
+      pthread_mutex_unlock(threadParams->pMutex);
+    }
 
-    /* copy data */
-    local_data.pitch = data.pitch;
-    local_data.timestamp_ns = data.timestamp_ns;
+    /* do other work */
+    /* dummyWorkFunction(); */
 
-    /* unlock shared data */
-    pthread_mutex_unlock(threadParams->pMutex);
-
-    /* do work */
-    struct timespec readTime;
+    /* for diagnstics */
     clock_gettime(CLOCK_MONOTONIC, &readTime);
-    printf("received %f: w/ timestamp: %ld ns, at: %f ns", data.pitch, data.timestamp_ns, TIMESPEC_TO_nSEC(readTime));
+    if(prev_timestamp_ns != local_data.timestamp_ns) {
+      printf("new data received pitch: %d: w/ timestamp: %ld ns, at: %ld ns, delta_t: %ld ns\n", (int)data.pitch, 
+      local_data.timestamp_ns, (uint64_t)TIMESPEC_TO_nSEC(readTime), 
+      (uint64_t)TIMESPEC_TO_nSEC(readTime) - local_data.timestamp_ns);
+    }
+
+    prev_timestamp_ns = local_data.timestamp_ns;
   }
-  printf("%s-%d exiting\n", __func__,threadParams->threadIdx);
+  printf("%s-%d exiting\n\r", __func__,threadParams->threadIdx);
   return NULL;
 }
 
 void *pubWorker(void *arg)
 {
   if(arg == NULL) {
-    printf("ERROR: invalid arg provided to %s", __func__);
+    printf("ERROR: invalid arg provided to %s\n\r", __func__);
     return NULL;
   }
 
   /* get thread parameters */
   threadParams_t *threadParams = (threadParams_t *)arg;
   if(threadParams->pMutex == NULL) {
-    printf("ERROR: invalid mutex provided to %s", __func__);
+    printf("ERROR: invalid mutex provided to %s\n\r", __func__);
     return NULL;
   }
+  printf("%s started ...\n\r", __func__);
 
-  int cnt = 0;
   while (!gAbortTest) {
     struct timespec writeTime;
     Attitude_t local_data;
 
     /* calculate vehicle attitude */
     update_state(&local_data);
-    clock_gettime(CLOCK_MONOTONIC, &writeTime);
 
-
-    if(pthread_mutex_trylock(threadParams->pMutex) == 0) {
-    data.accel_x = local_data.accel_x;
-    data.accel_y = local_data.accel_y;
-    data.accel_z = local_data.accel_z;
-    data.pitch = local_data.pitch;
-    data.roll = local_data.roll;
-    data.yaw = local_data.yaw;
-    data.timestamp_ns = TIMESPEC_TO_nSEC(writeTime);
-    pthread_mutex_unlock(threadParams->pMutex);
+    /* this is an example of using trylock; if for some reason
+     * we can't get lock, just cycle back around and calculate
+     * new state data; if we were to allow block here, the 
+     * data would be stale when sent, we don't want that */
+    if(pthread_mutex_lock(threadParams->pMutex) == 0) {
+      data.accel_x = local_data.accel_x;
+      data.accel_y = local_data.accel_y;
+      data.accel_z = local_data.accel_z;
+      data.pitch = local_data.pitch;
+      data.roll = local_data.roll;
+      data.yaw = local_data.yaw;
+      clock_gettime(CLOCK_MONOTONIC, &writeTime);
+      data.timestamp_ns = TIMESPEC_TO_nSEC(writeTime);
+      pthread_mutex_unlock(threadParams->pMutex);
     }
-    ++cnt;
-    usleep(1000);
+    usleep(1e3);
   }
-  printf("%s-%d exiting\n", __func__,threadParams->threadIdx);
+  printf("%s-%d exiting\n\r", __func__,threadParams->threadIdx);
   return NULL;
 }
 
@@ -149,6 +164,8 @@ int main(int argc, char *argv[])
   threadParams_t threadParams;
   pthread_mutex_t attitude_mutex;
   pthread_attr_t thread_attr;
+
+  pthread_mutex_init(&attitude_mutex, NULL);
 
   /* set scheduling policy of main and threads */
   print_scheduler();
@@ -161,20 +178,31 @@ int main(int argc, char *argv[])
    * set thread attributes (scheduling) too! */
   /*----------------------------------------------*/
   threadParams.pMutex = &attitude_mutex;
-  threadParams.threadIdx = SUB_THREAD_NUM;
-  pthread_create(&threads[SUB_THREAD_NUM],  // pointer to thread descriptor
-                 &thread_attr,              // set custom attributes!
-                 subWorker,                 // thread function entry point
-                 (void *)&threadParams      // parameters to pass in
-  );
+  threadParams.threadIdx = PUB_THREAD_NUM;
+  if(pthread_create(&threads[PUB_THREAD_NUM], 
+    //(void *)0,
+    &thread_attr, 
+    pubWorker, (void *)&threadParams) != 0) {
+    printf("ERROR: couldn't create thread#%d\n\r", PUB_THREAD_NUM);
+  }
 
   threadParams.pMutex = &attitude_mutex;
   threadParams.threadIdx = SUB_THREAD_NUM;
-  pthread_create(&threads[SUB_THREAD_NUM], &thread_attr, pubWorker, (void *)&threadParams);
+  if(pthread_create(&threads[SUB_THREAD_NUM], 
+    //(void *)0,
+    &thread_attr, 
+    subWorker, (void *)&threadParams ) != 0) {
+    printf("ERROR: couldn't create thread#%d\n\r", SUB_THREAD_NUM);
+  }
 
   /*----------------------------------------------*/
   /* run main */
   /*----------------------------------------------*/
+  /* just run for X seconds then kill
+   * all threads */
+  usleep(10e3);
+  gAbortTest = 1;
+
   printf("%s waiting on threads ... \n", __func__);
   for(uint8_t ind = 0;ind < NUM_THREADS; ++ind) {
     pthread_join(threads[ind], NULL);
