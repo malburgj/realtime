@@ -141,7 +141,7 @@ void *pubWorker(void *arg)
      * we can't get lock, just cycle back around and calculate
      * new state data; if we were to allow block here, the 
      * data would be stale when sent, we don't want that */
-    if(pthread_mutex_lock(threadParams->pMutex) == 0) {
+    if(pthread_mutex_trylock(threadParams->pMutex) == 0) {
       data.accel_x = local_data.accel_x;
       data.accel_y = local_data.accel_y;
       data.accel_z = local_data.accel_z;
