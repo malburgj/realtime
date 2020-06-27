@@ -24,6 +24,7 @@
 #include <semaphore.h>
 #include <errno.h>
 #include <string.h>
+#include <time.h>
 
 /*---------------------------------------------------------------------------------*/
 /* MACROS / TYPES / CONST */
@@ -83,19 +84,29 @@ void *subWorker(void *arg)
   Attitude_t local_data;
   memset(&local_data, 0, sizeof(local_data));
 
+  struct timespec maxBlockDelay;
+  maxBlockDelay.tv_nsec = 10e6;
+  maxBlockDelay.tv_sec = 0;
+
   struct timespec readTime;
   uint64_t prev_timestamp_ns = 0;
+  int rtnCode;
   while (!gAbortTest) {
     /* try to get lock; if locked, wait because its critical
-     * we don't miss data; could also do trylock here if 
-     * we can just use most recent data */
-    if(pthread_mutex_lock(threadParams->pMutex) == 0) {
+     * we don't miss data; use timedlock to prevent infinite block state */
+    if((rtnCode = pthread_mutex_timedlock(threadParams->pMutex, &maxBlockDelay)) == 0) {
       /* copy data */
       local_data.pitch = data.pitch;
       local_data.timestamp_ns = data.timestamp_ns;
 
       /* unlock shared data */
       pthread_mutex_unlock(threadParams->pMutex);
+    } else {
+      if(rtnCode == ETIMEDOUT) {
+        printf("SUB: mutex timeout occured\n\r");
+      } else {
+        printf("SUB: mutext error occured, code: %d\n\r", rtnCode);
+      }
     }
 
     /* do other work */
