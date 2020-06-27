@@ -1,0 +1,7 @@
+*.o
+deadlock
+pthread3
+pthread3amp
+pthread3ok
+deadlock_timeout
+*.d
