@@ -198,62 +198,49 @@ void *startService(void *threadp)
    int rc;
 
    runInterference=intfTime;
+   /*-----------------HIGH--------------------------------*/
+      rt_param[HIGH_PRIO_SERVICE].sched_priority = rt_max_prio-1;
+   pthread_attr_setschedparam(&rt_sched_attr[HIGH_PRIO_SERVICE], &rt_param[HIGH_PRIO_SERVICE]);
 
-   rt_param[LOW_PRIO_SERVICE].sched_priority = rt_max_prio-20;
-   pthread_attr_setschedparam(&rt_sched_attr[LOW_PRIO_SERVICE], &rt_param[LOW_PRIO_SERVICE]);
-
-   threadParams[LOW_PRIO_SERVICE].threadIdx=LOW_PRIO_SERVICE;
-   rc = pthread_create(&threads[LOW_PRIO_SERVICE], &rt_sched_attr[LOW_PRIO_SERVICE], idleNoSem, (void *)&threadParams[LOW_PRIO_SERVICE]);
-
-   if (rc)
-   {
+   threadParams[HIGH_PRIO_SERVICE].threadIdx=HIGH_PRIO_SERVICE;
+   rc = pthread_create(&threads[HIGH_PRIO_SERVICE], &rt_sched_attr[HIGH_PRIO_SERVICE], idleNoSem, (void *)&threadParams[HIGH_PRIO_SERVICE]);
+   if (rc) {
        printf("ERROR; pthread_create() rc is %d\n", rc);
        perror(NULL);
        exit(-1);
    }
-
    gettimeofday(&timeNow, (void *)0);
-   printf("Low prio %d thread spawned at %d sec, %d nsec\n", LOW_PRIO_SERVICE, (int)timeNow.tv_sec, (int)timeNow.tv_nsec);
+   printf("High prio %d thread spawned at %d sec, %d nsec\n", HIGH_PRIO_SERVICE, (int)timeNow.tv_sec, (int)timeNow.tv_nsec);
+   /*-----------------HIGH--------------------------------*/
 
-
-   sleep(1);
-
+   /*-----------------MID--------------------------------*/
    rt_param[MID_PRIO_SERVICE].sched_priority = rt_max_prio-10;
    pthread_attr_setschedparam(&rt_sched_attr[MID_PRIO_SERVICE], &rt_param[MID_PRIO_SERVICE]);
 
    threadParams[MID_PRIO_SERVICE].threadIdx=MID_PRIO_SERVICE;
    rc = pthread_create(&threads[MID_PRIO_SERVICE], &rt_sched_attr[MID_PRIO_SERVICE], idleNoSem, (void *)&threadParams[MID_PRIO_SERVICE]);
 
-   if (rc)
-   {
+   if (rc) {
        printf("ERROR; pthread_create() rc is %d\n", rc);
        perror(NULL);
        exit(-1);
    }
-
    gettimeofday(&timeNow, (void *)0);
    printf("Middle prio %d thread spawned at %d sec, %d nsec\n", MID_PRIO_SERVICE, (int)timeNow.tv_sec, (int)timeNow.tv_nsec);
-
-
-   rt_param[HIGH_PRIO_SERVICE].sched_priority = rt_max_prio-1;
-   pthread_attr_setschedparam(&rt_sched_attr[HIGH_PRIO_SERVICE], &rt_param[HIGH_PRIO_SERVICE]);
-
-   threadParams[HIGH_PRIO_SERVICE].threadIdx=HIGH_PRIO_SERVICE;
-   rc = pthread_create(&threads[HIGH_PRIO_SERVICE], &rt_sched_attr[HIGH_PRIO_SERVICE], idleNoSem, (void *)&threadParams[HIGH_PRIO_SERVICE]);
-
-   if (rc)
-   {
+   /*-----------------MID --------------------------------*/
+   /*-----------------LOW --------------------------------*/
+   rt_param[LOW_PRIO_SERVICE].sched_priority = rt_max_prio-20;
+   pthread_attr_setschedparam(&rt_sched_attr[LOW_PRIO_SERVICE], &rt_param[LOW_PRIO_SERVICE]);
+   threadParams[LOW_PRIO_SERVICE].threadIdx=LOW_PRIO_SERVICE;
+   rc = pthread_create(&threads[LOW_PRIO_SERVICE], &rt_sched_attr[LOW_PRIO_SERVICE], idleNoSem, (void *)&threadParams[LOW_PRIO_SERVICE]);
+   if (rc) {
        printf("ERROR; pthread_create() rc is %d\n", rc);
        perror(NULL);
        exit(-1);
    }
-
    gettimeofday(&timeNow, (void *)0);
-   printf("High prio %d thread spawned at %d sec, %d nsec\n", HIGH_PRIO_SERVICE, (int)timeNow.tv_sec, (int)timeNow.tv_nsec);
-
-
-
-
+   printf("Low prio %d thread spawned at %d sec, %d nsec\n", LOW_PRIO_SERVICE, (int)timeNow.tv_sec, (int)timeNow.tv_nsec);
+  /*-----------------LOW --------------------------------*/
 
    if(pthread_join(threads[LOW_PRIO_SERVICE], NULL) == 0)
      printf("LOW PRIO done\n");
