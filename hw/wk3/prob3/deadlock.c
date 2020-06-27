@@ -3,6 +3,9 @@
 #include <sched.h>
 #include <time.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
 
 #define NUM_THREADS 2
 #define THREAD_1 1
@@ -28,16 +31,39 @@ void *grabRsrcs(void *threadp)
 {
    threadParams_t *threadParams = (threadParams_t *)threadp;
    int threadIdx = threadParams->threadIdx;
-
+   struct timespec timeNow;
+   struct timespec rsrcA_timeout;
+   struct timespec rsrcB_timeout;
+   int rc;
 
    if(threadIdx == THREAD_1)
    {
      printf("THREAD 1 grabbing resources\n");
-     pthread_mutex_lock(&rsrcA);
+     
+     /* set timeout, wait a random amount of time */
+     clock_gettime(CLOCK_REALTIME, &timeNow);
+     rsrcA_timeout.tv_sec = timeNow.tv_sec + 1;
+     rsrcA_timeout.tv_nsec = timeNow.tv_nsec;
+     if(pthread_mutex_timedlock(&rsrcA, &rsrcA_timeout) == ETIMEDOUT) {
+       int randomDelay_us = rand() % 1000;
+       printf("mutex A timeout occured for thread#%d, delaying: %d us\n\r", threadIdx, randomDelay_us);
+       usleep(randomDelay_us);
+     }
+
      rsrcACnt++;
      if(!noWait) usleep(1000000);
      printf("THREAD 1 got A, trying for B\n");
-     pthread_mutex_lock(&rsrcB);
+
+     /* set timeout, wait a random amount of time */
+     clock_gettime(CLOCK_REALTIME, &timeNow);
+     rsrcB_timeout.tv_sec = timeNow.tv_sec + 1;
+     rsrcB_timeout.tv_nsec = timeNow.tv_nsec;
+     if(pthread_mutex_timedlock(&rsrcB, &rsrcB_timeout) == ETIMEDOUT) {
+       int randomDelay_us = rand() % 1000;
+       printf("mutex B timeout occured for thread#%d, delaying: %d us\n\r", threadIdx, randomDelay_us);
+       usleep(randomDelay_us);
+     }
+
      rsrcBCnt++;
      printf("THREAD 1 got A and B\n");
      pthread_mutex_unlock(&rsrcB);
@@ -47,11 +73,31 @@ void *grabRsrcs(void *threadp)
    else
    {
      printf("THREAD 2 grabbing resources\n");
-     pthread_mutex_lock(&rsrcB);
+
+     /* set timeout, wait a random amount of time */
+     clock_gettime(CLOCK_REALTIME, &timeNow);
+     rsrcB_timeout.tv_sec = timeNow.tv_sec + 1;
+     rsrcB_timeout.tv_nsec = timeNow.tv_nsec;
+     if(pthread_mutex_timedlock(&rsrcB, &rsrcB_timeout) == ETIMEDOUT) {
+       int randomDelay_us = rand() % 1000;
+       printf("mutex B timeout occured for thread#%d, delaying: %d us\n\r", threadIdx, randomDelay_us);
+       usleep(randomDelay_us);
+     }
+
      rsrcBCnt++;
      if(!noWait) usleep(1000000);
      printf("THREAD 2 got B, trying for A\n");
-     pthread_mutex_lock(&rsrcA);
+     
+     /* set timeout, wait a random amount of time */
+     clock_gettime(CLOCK_REALTIME, &timeNow);
+     rsrcA_timeout.tv_sec = timeNow.tv_sec + 1;
+     rsrcA_timeout.tv_nsec = timeNow.tv_nsec;
+     if(pthread_mutex_timedlock(&rsrcA, &rsrcA_timeout) == ETIMEDOUT) {
+       int randomDelay_us = rand() % 1000;
+       printf("mutex A timeout occured for thread#%d, delaying: %d us\n\r", threadIdx, randomDelay_us);
+       usleep(randomDelay_us);
+     }
+
      rsrcACnt++;
      printf("THREAD 2 got B and A\n");
      pthread_mutex_unlock(&rsrcA);
@@ -66,6 +112,9 @@ int main (int argc, char *argv[])
    int rc, safe=0;
 
    rsrcACnt=0, rsrcBCnt=0, noWait=0;
+
+   /* initialize random number generator */
+   srand(time(NULL));
 
    if(argc < 2)
    {
