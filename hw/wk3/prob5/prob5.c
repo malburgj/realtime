@@ -120,8 +120,8 @@ void *subWorker(void *arg)
     /* for diagnstics */
     clock_gettime(CLOCK_MONOTONIC, &readTime);
     if(prev_timestamp_ns != local_data.timestamp_ns) {
-      printf("new data received pitch: %d: w/ timestamp: %ld ns, at: %ld ns, delta_t: %ld ns\n", (int)data.pitch, 
-      local_data.timestamp_ns, (uint64_t)TIMESPEC_TO_nSEC(readTime), 
+      printf("new data received pitch value: %.2f rad, w/ timestamp: %.9f s, at: %.9f s, delta_t: %ld ns\n", data.pitch, 
+      (float)local_data.timestamp_ns/1.0e9, TIMESPEC_TO_nSEC(readTime)/1.0e9, 
       (uint64_t)TIMESPEC_TO_nSEC(readTime) - local_data.timestamp_ns);
     }
 
@@ -158,6 +158,11 @@ void *pubWorker(void *arg)
      * new state data; if we were to allow block here, the 
      * data would be stale when sent, we don't want that */
     if(pthread_mutex_trylock(threadParams->pMutex) == 0) {
+
+
+      /* adding a big deal to cause time out of subWorker thread */
+      sleep(11);
+
       data.accel_x = local_data.accel_x;
       data.accel_y = local_data.accel_y;
       data.accel_z = local_data.accel_z;
@@ -166,10 +171,7 @@ void *pubWorker(void *arg)
       data.yaw = local_data.yaw;
       clock_gettime(CLOCK_MONOTONIC, &writeTime);
       data.timestamp_ns = TIMESPEC_TO_nSEC(writeTime);
-      
-      /* commenting this out so the other thread never gets the 
-       * mutext and lock time out occures */
-      //pthread_mutex_unlock(threadParams->pMutex);
+      pthread_mutex_unlock(threadParams->pMutex);
     }
     usleep(1e3);
   }
@@ -219,7 +221,7 @@ int main(int argc, char *argv[])
   /*----------------------------------------------*/
   /* just run for X seconds then kill
    * all threads */
-  usleep(10e3);
+  sleep(21);
   gAbortTest = 1;
 
   printf("%s waiting on threads ... \n", __func__);
