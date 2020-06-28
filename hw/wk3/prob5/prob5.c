@@ -3,11 +3,11 @@
  * joshua.malburg@colorado.edu
  * Real-time Embedded Systems
  * ECEN5623 - Sam Siewert
- * @date 12Jun2020
+ * @date 28Jun2020
  * Ubuntu 18.04 LTS and Jetbot
  ************************************************************************************
  *
- * @file prob2.c
+ * @file prob5.c
  * @brief demo two RT threads sharing global data, protected by a MUTEX
  *
  ************************************************************************************
@@ -28,23 +28,23 @@
 
 /*---------------------------------------------------------------------------------*/
 /* MACROS / TYPES / CONST */
-#define NUM_THREADS                     (2)
+#define NUM_THREADS         	(2)
 #define TIMESPEC_TO_nSEC(time)	((((float)time.tv_sec) * 1.0e9) + (((float)time.tv_nsec)))
-#define SUB_THREAD_NUM (0)
-#define PUB_THREAD_NUM (SUB_THREAD_NUM + 1)
+#define SUB_THREAD_NUM 			(0)
+#define PUB_THREAD_NUM 			(SUB_THREAD_NUM + 1)
 
 typedef struct {
-  int threadIdx;        /* thread id */
-  pthread_mutex_t *pMutex;        /* mutex */
+  int threadIdx;        	/* thread id */
+  pthread_mutex_t *pMutex;	/* mutex */
 } threadParams_t;
 
 typedef struct {
-  float accel_x;          /* vehicle X translational aceleration, m/s */
-  float accel_y;          /* vehicle y translational acceleration, m/s */
-  float accel_z;          /* vehicle z translational accelaration, m/s */
-  float roll;             /* roll angle, radian */
-  float pitch;            /* vehicle pitch angle, radian */
-  float yaw;              /* vehicle yaw/heading angle, radian */
+  float accel_x;          	/* vehicle X translational aceleration, m/s */
+  float accel_y;          	/* vehicle y translational acceleration, m/s */
+  float accel_z;          	/* vehicle z translational accelaration, m/s */
+  float roll;             	/* roll angle, radian */
+  float pitch;            	/* vehicle pitch angle, radian */
+  float yaw;              	/* vehicle yaw/heading angle, radian */
   uint64_t timestamp_ns;
 } Attitude_t;
 
@@ -84,17 +84,17 @@ void *subWorker(void *arg)
   Attitude_t local_data;
   memset(&local_data, 0, sizeof(local_data));
 
-  struct timespec maxBlockDelay;
-  maxBlockDelay.tv_nsec = 10e6;
-  maxBlockDelay.tv_sec = 0;
-
-  struct timespec readTime;
+  struct timespec readTime, timeNow, expireTime;
   uint64_t prev_timestamp_ns = 0;
   int rtnCode;
   while (!gAbortTest) {
     /* try to get lock; if locked, wait because its critical
-     * we don't miss data; use timedlock to prevent infinite block state */
-    if((rtnCode = pthread_mutex_timedlock(threadParams->pMutex, &maxBlockDelay)) == 0) {
+     * we don't miss data; use timedlock to prevent infinite block state 
+     * wait up to ten seconds */
+  	clock_gettime(CLOCK_REALTIME, &timeNow);
+  	expireTime.tv_sec = timeNow.tv_sec + 10;
+  	expireTime.tv_nsec = timeNow.tv_nsec;
+    if((rtnCode = pthread_mutex_timedlock(threadParams->pMutex, &expireTime)) == 0) {
       /* copy data */
       local_data.pitch = data.pitch;
       local_data.timestamp_ns = data.timestamp_ns;
@@ -103,7 +103,12 @@ void *subWorker(void *arg)
       pthread_mutex_unlock(threadParams->pMutex);
     } else {
       if(rtnCode == ETIMEDOUT) {
-        printf("SUB: mutex timeout occured\n\r");
+      	clock_gettime(CLOCK_REALTIME, &readTime);
+        printf("SUB: No data available at: %.9f s, requested timeout: %.9f s\n\r", 
+        	TIMESPEC_TO_nSEC(readTime)/1.0e9, TIMESPEC_TO_nSEC(expireTime)/1.0e9);
+        struct timespec deltaTime;
+        calc_dt(&readTime, &timeNow, &deltaTime);
+        printf("SUB: delta delay: %.9f s\n\r", TIMESPEC_TO_nSEC(deltaTime)/1.0e9);
       } else {
         printf("SUB: mutext error occured, code: %d\n\r", rtnCode);
       }
@@ -161,7 +166,10 @@ void *pubWorker(void *arg)
       data.yaw = local_data.yaw;
       clock_gettime(CLOCK_MONOTONIC, &writeTime);
       data.timestamp_ns = TIMESPEC_TO_nSEC(writeTime);
-      pthread_mutex_unlock(threadParams->pMutex);
+      
+      /* commenting this out so the other thread never gets the 
+       * mutext and lock time out occures */
+      //pthread_mutex_unlock(threadParams->pMutex);
     }
     usleep(1e3);
   }

@@ -85,15 +85,14 @@ void *subWorker(void *arg)
   memset(&local_data, 0, sizeof(local_data));
 
   struct timespec maxBlockDelay;
-  maxBlockDelay.tv_nsec = 10e6;
-  maxBlockDelay.tv_sec = 0;
-
   struct timespec readTime;
   uint64_t prev_timestamp_ns = 0;
   int rtnCode;
   while (!gAbortTest) {
     /* try to get lock; if locked, wait because its critical
      * we don't miss data; use timedlock to prevent infinite block state */
+  	clock_gettime(CLOCK_REALTIME, &maxBlockDelay);
+  	maxBlockDelay.tv_nsec += 10e6;
     if((rtnCode = pthread_mutex_timedlock(threadParams->pMutex, &maxBlockDelay)) == 0) {
       /* copy data */
       local_data.pitch = data.pitch;
@@ -113,7 +112,7 @@ void *subWorker(void *arg)
     /* dummyWorkFunction(); */
 
     /* for diagnstics */
-    clock_gettime(CLOCK_MONOTONIC, &readTime);
+    clock_gettime(CLOCK_REALTIME, &readTime);
     if(prev_timestamp_ns != local_data.timestamp_ns) {
       printf("new data received pitch: %d: w/ timestamp: %ld ns, at: %ld ns, delta_t: %ld ns\n", (int)data.pitch, 
       local_data.timestamp_ns, (uint64_t)TIMESPEC_TO_nSEC(readTime), 
@@ -159,7 +158,7 @@ void *pubWorker(void *arg)
       data.pitch = local_data.pitch;
       data.roll = local_data.roll;
       data.yaw = local_data.yaw;
-      clock_gettime(CLOCK_MONOTONIC, &writeTime);
+      clock_gettime(CLOCK_REALTIME, &writeTime);
       data.timestamp_ns = TIMESPEC_TO_nSEC(writeTime);
       pthread_mutex_unlock(threadParams->pMutex);
     }

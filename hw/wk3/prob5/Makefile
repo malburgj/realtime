@@ -5,7 +5,7 @@ CDEFS=
 CFLAGS= -O3 $(INCLUDE_DIRS) $(CDEFS)
 LIBS= -lpthread
 
-PRODUCT=prob2
+PRODUCT=prob5
 
 HFILES= 
 CFILES= ${PRODUCT}.c
