@@ -2,27 +2,32 @@ INCLUDE_DIRS =
 LIB_DIRS = 
 
 CDEFS=
-CFLAGS= -O3 $(INCLUDE_DIRS) $(CDEFS)
-LIBS= -lpthread -lrt
+CFLAGS= -O -g $(INCLUDE_DIRS) $(CDEFS)
+LIBS=-lpthread -lrt
 
-PRODUCT=prob4
+HFILES=
 
-HFILES= 
-CFILES= ${PRODUCT}.c
+CFILES1= prob4_posix.c 
+CFILES2= prob4_heap.c
 
-SRCS= ${HFILES} ${CFILES}
-OBJS= ${CFILES:.c=.o}
+SRCS1= ${HFILES} ${CFILES1}
+SRCS2= ${HFILES} ${CFILES2}
 
-all:	${PRODUCT}
+OBJS1= ${CFILES1:.c=.o}
+OBJS2= ${CFILES2:.c=.o}
+
+all: prob4_posix prob4_heap
 
 clean:
-	-rm -f *.o *.NEW *~
-	-rm -f ${PRODUCT} ${DERIVED} ${GARBAGE}
+	-rm -f *.o *.d *.elf
 
-${PRODUCT}:	${OBJS}
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(OBJS) $(LIBS)
+prob4_posix: prob4_posix.o
+	$(CC) $(LDFLAGS) $(CFLAGS) -o $@.elf $(OBJS1) $(LIBS)
+
+prob4_heap: prob4_heap.o
+	$(CC) $(LDFLAGS) $(CFLAGS) -o $@.elf $(OBJS2) $(LIBS)
 
 depend:
 
 .c.o:
-	$(CC) $(CFLAGS) -c $<
+	$(CC) -MD $(CFLAGS) -c $<

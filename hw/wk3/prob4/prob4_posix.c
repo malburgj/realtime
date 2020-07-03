@@ -7,7 +7,7 @@
  * Ubuntu 18.04 LTS and Jetbot
  ************************************************************************************
  *
- * @file prob4.c
+ * @file prob4_posix.c
  * @brief demo message queue example
  *
  ************************************************************************************
@@ -52,14 +52,15 @@ void *sender(void *arg);
 /* GLOBAL VARIABLES */
 int gAbortTest = 0;
 static char canned_msg[] = "God Bless America";
+int headExampleFlag;
 
 /*---------------------------------------------------------------------------------*/
 
 int main(int argc, char *argv[])
 {
-  /* starting logging; use dmesg | grep prob4 
+  /* starting logging; use cat /var/log/syslog | grep prob4
    * to view messages */
-  openlog("prob4", LOG_PID | LOG_NDELAY | LOG_CONS, LOG_USER);
+  openlog("prob4_posix", LOG_PID | LOG_NDELAY | LOG_CONS, LOG_USER);
   syslog(LOG_INFO, ".");
   syslog(LOG_INFO, "..");
   syslog(LOG_INFO, "...");
