@@ -42,7 +42,7 @@ int getMatcherFilterType( const string& str )
 
 void simpleMatching( Ptr<DescriptorMatcher>& descriptorMatcher,
                      const Mat& descriptors1, const Mat& descriptors2,
-                     vector<DMatch>& matches12 )
+                     vector<DMatch>& matches12)
 {
     vector<DMatch> matches;
     descriptorMatcher->match( descriptors1, descriptors2, matches12 );
@@ -91,20 +91,21 @@ void doIteration( const Mat& img1, Mat& img2,
 
     vector<DMatch> filteredMatches;
     if(matcherFilter == CROSS_CHECK_FILTER) {
-        crossCheckMatching( descriptorMatcher, descriptors1, descriptors2, filteredMatches, 1);
+        crossCheckMatching(descriptorMatcher, descriptors1, descriptors2, filteredMatches, 1);
     } else {
-        simpleMatching( descriptorMatcher, descriptors1, descriptors2, filteredMatches );
+        simpleMatching(descriptorMatcher, descriptors1, descriptors2, filteredMatches);
     }
 
-    vector<int> queryIdxs( filteredMatches.size() ), trainIdxs( filteredMatches.size() );
-    for( size_t i = 0; i < filteredMatches.size(); i++ ) {
+    vector<int> queryIdxs(filteredMatches.size());
+    vector<int> trainIdxs(filteredMatches.size());
+
+    for(size_t i = 0; i < filteredMatches.size(); ++i) {
         queryIdxs[i] = filteredMatches[i].queryIdx;
         trainIdxs[i] = filteredMatches[i].trainIdx;
     }
 
     Mat H12;
     if(ransacReprojThreshold >= 0) {
-        cout << "< Computing homography (RANSAC)..." << endl;
         vector<Point2f> points1; KeyPoint::convert(keypoints1, points1, queryIdxs);
         vector<Point2f> points2; KeyPoint::convert(keypoints2, points2, trainIdxs);
         H12 = findHomography( Mat(points1), Mat(points2), CV_RANSAC, ransacReprojThreshold );
@@ -150,6 +151,7 @@ int main(int argc, char** argv)
         return -1;
     }
     double ransacReprojThreshold = atof(argv[7]);
+    ransacReprojThreshold = ransacReprojThreshold < 0 ? 0 : ransacReprojThreshold;
 
     Ptr<FeatureDetector> detector;
     Ptr<DescriptorExtractor> descriptorExtractor;
