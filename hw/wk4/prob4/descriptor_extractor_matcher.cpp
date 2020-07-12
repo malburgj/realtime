@@ -9,18 +9,22 @@
 using namespace cv;
 using namespace std;
 
+#define TIMESPEC_TO_mSEC(time)	((((float)time.tv_sec) * 1.0e3) + (((float)time.tv_nsec) * 1.0e-6))
+int calc_dt(struct timespec *stop, struct timespec *start, struct timespec *delta_t);
+
 void help(char** argv)
 {
-    cout << "\nThis program demonstrats keypoint finding and matching between 2 images using features2d framework.\n"
-     << "If ransacReprojThreshold>=0 then homography matrix is calculated and used to filter matches\n"
-     << "\n"
-     << "Example of usage:\n"
-     << "./descriptor_extractor_matcher SURF SURF BruteForce CrossCheckFilter cola1.jpg cola2.jpg 3\n"
-     << "\n"
-     << "Possible detectorType values: SIFT.\n"
-     << "Possible descriptorType values: SIFT.\n"
-     << "Possible matcherType values: see in documentation on createDescriptorMatcher().\n"
-     << "Possible matcherFilterType values: NoneFilter, CrossCheckFilter." << endl;
+  cout << argv[0] << " [detectorType] [descriptorType] [matcherType] [matcherFilterType] [image1] [image2] [ransacReprojThreshold]\n\n"
+  << "This program demonstrates keypoint finding and matching between 2 images using features2d framework.\n"
+  << "If ransacReprojThreshold>=0 then homography matrix is calculated and used to filter matches\n"
+  << "\n"
+  << "Example of usage:\n"
+  << "./descriptor_extractor_matcher SURF SURF BruteForce CrossCheckFilter cola1.jpg cola2.jpg 3\n"
+  << "\n"
+  << "Possible detectorType values: SIFT.\n"
+  << "Possible descriptorType values: SIFT.\n"
+  << "Possible matcherType values: see in documentation on createDescriptorMatcher().\n"
+  << "Possible matcherFilterType values: NoneFilter, CrossCheckFilter." << endl;
 }
 
 #define DRAW_RICH_KEYPOINTS_MODE  (0)
@@ -77,15 +81,14 @@ void crossCheckMatching( Ptr<DescriptorMatcher>& descriptorMatcher,
 void doIteration( const Mat& img1, Mat& img2,
                   vector<KeyPoint>& keypoints1, const Mat& descriptors1,
                   Ptr<FeatureDetector>& detector, Ptr<DescriptorExtractor>& descriptorExtractor,
-                  Ptr<DescriptorMatcher>& descriptorMatcher, int matcherFilter, bool eval,
-                  double ransacReprojThreshold)
+                  Ptr<DescriptorMatcher>& descriptorMatcher, int matcherFilter,
+                  double ransacReprojThreshold, Mat &drawImg)
 {
     assert(!img1.empty());
     assert(!img2.empty());
 
     vector<KeyPoint> keypoints2;
     detector->detect( img2, keypoints2 );
-    cout << "Total of " << keypoints2.size() << " keypoints extracted from second image" << endl;
     Mat descriptors2;
     descriptorExtractor->compute( img2, keypoints2, descriptors2 );
 
@@ -111,7 +114,6 @@ void doIteration( const Mat& img1, Mat& img2,
         H12 = findHomography( Mat(points1), Mat(points2), CV_RANSAC, ransacReprojThreshold );
     }
 
-    Mat drawImg;
     if(!H12.empty()) {// filter outliers
         vector<char> matchesMask(filteredMatches.size(), 0);
         vector<Point2f> points1; KeyPoint::convert(keypoints1, points1, queryIdxs);
@@ -141,7 +143,6 @@ void doIteration( const Mat& img1, Mat& img2,
     else {
       drawMatches(img1, keypoints1, img2, keypoints2, filteredMatches, drawImg);
     }
-    imshow( winName, drawImg );
 }
 
 int main(int argc, char** argv)
@@ -169,29 +170,82 @@ int main(int argc, char** argv)
         return -1;
     }
     int mactherFilterType = getMatcherFilterType(argv[4]);
-    bool eval = true;
 		
     Mat img1 = imread(argv[5]);
-    Mat img2 = imread(argv[6]);
     resize(img1, img1, Size(640, 480));
-    resize(img2, img2, Size(640,480));
-    if(img1.empty() || img2.empty()) {
+    
+    if(img1.empty()) {
         cout << "Can not read images" << endl;
         return -1;
     }
 
+    /* get keypoints and descriptor of object of interest */
     vector<KeyPoint> keypoints1;
     detector->detect( img1, keypoints1 );
-    cout << "Total of " << keypoints1.size() << " keypoints extracted from first image" << endl;
-
     Mat descriptors1;
     descriptorExtractor->compute( img1, keypoints1, descriptors1 );
 
     namedWindow(winName, 1);
-    doIteration( img1, img2, keypoints1, descriptors1,
-                 detector, descriptorExtractor, descriptorMatcher, mactherFilterType, eval,
-                 ransacReprojThreshold);
 
-    waitKey(0);
+    cout << "enter 'x' to exit\n\r";
+    struct timespec startTime, stopTime, deltaTime;
+    float maxDt, cumDt;
+    int cnt = 1;
+    Mat readImg, drawImg;
+    VideoCapture capture;
+    if(!capture.open(0)) {
+      cout << "failed to open camera\n";
+      return -1;
+    }
+
+    while(1) {
+      capture >> readImg;
+      resize(readImg, readImg, Size(640,480));
+      clock_gettime(CLOCK_MONOTONIC, &startTime);    
+      doIteration( img1, readImg, keypoints1, descriptors1,
+              detector, descriptorExtractor, descriptorMatcher, mactherFilterType,
+              ransacReprojThreshold, drawImg);
+      clock_gettime(CLOCK_MONOTONIC, &stopTime);
+      calc_dt(&stopTime, &startTime, &deltaTime);
+      float dt = TIMESPEC_TO_mSEC(deltaTime);
+      maxDt = dt > maxDt ? dt : maxDt;
+      cumDt += dt;
+      cout << "frame rate, avg: " << cumDt / static_cast<float>(cnt) << ", max: " << maxDt << endl;
+      ++cnt;
+      imshow( winName, drawImg);
+      char c = waitKey(30);
+      if(c == 'x') {
+        imwrite("prob4.jpg", drawImg);
+        break;
+      }
+    }
     return 0;
+}
+
+int calc_dt(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
+{
+  int dt_sec = stop->tv_sec - start->tv_sec;
+  int dt_nsec = stop->tv_nsec - start->tv_nsec;
+
+  if(dt_sec >= 0) {
+    if(dt_nsec >= 0) {
+      delta_t->tv_sec = dt_sec;
+      delta_t->tv_nsec = dt_nsec;
+    }
+    else {
+      delta_t->tv_sec = dt_sec - 1;
+      delta_t->tv_nsec = 1e9 + dt_nsec;
+    }
+  }
+  else {
+    if(dt_nsec >= 0) {
+      delta_t->tv_sec = dt_sec;
+      delta_t->tv_nsec = dt_nsec;
+    }
+    else {
+      delta_t->tv_sec = dt_sec-1;
+      delta_t->tv_nsec = 1e9 + dt_nsec;
+    }
+  }
+  return 0;
 }

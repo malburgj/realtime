@@ -43,15 +43,13 @@
 // Format is used by a number of functions, so made as a file global
 static struct v4l2_format fmt;
 
-enum io_method 
-{
+enum io_method {
         IO_METHOD_READ,
         IO_METHOD_MMAP,
         IO_METHOD_USERPTR,
 };
 
-struct buffer 
-{
+struct buffer {
         void   *start;
         size_t  length;
 };
@@ -76,13 +74,10 @@ static void errno_exit(const char *s)
 static int xioctl(int fh, int request, void *arg)
 {
         int r;
-
-        do 
-        {
+        do {
             r = ioctl(fh, request, arg);
 
         } while (-1 == r && EINTR == errno);
-
         return r;
 }
 
@@ -104,7 +99,6 @@ static void dump_ppm(const void *p, int size, unsigned int tag, struct timespec 
     written=write(dumpfd, ppm_header, sizeof(ppm_header));
 
     total=0;
-
     do
     {
         written=write(dumpfd, p, size);
@@ -112,11 +106,8 @@ static void dump_ppm(const void *p, int size, unsigned int tag, struct timespec 
     } while(total < size);
 
     printf("wrote %d bytes\n", total);
-
     close(dumpfd);
-    
 }
-
 
 char pgm_header[]="P5\n#9999999999 sec 9999999999 msec \n"HRES_STR" "VRES_STR"\n255\n";
 char pgm_dumpname[]="test00000000.pgm";
@@ -145,8 +136,7 @@ static void dump_pgm(const void *p, int size, unsigned int tag, struct timespec 
 
     printf("wrote %d bytes\n", total);
 
-    close(dumpfd);
-    
+    close(dumpfd);  
 }
 
 
@@ -209,8 +199,6 @@ void yuv2rgb(int y, int u, int v, unsigned char *r, unsigned char *g, unsigned c
    *g = g1 ;
    *b = b1 ;
 }
-
-
 
 unsigned int framecnt=0;
 unsigned char bigbuffer[(1280*960)];
