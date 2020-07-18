@@ -51,11 +51,21 @@ using namespace std;
 #define ERROR                         (-1)
 #define READ_THEAD_NUM 			          (0)
 #define PROC_THEAD_NUM 			          (READ_THEAD_NUM + 1)
+#define MAX_IMG_ROWS                  (480)
+#define MAX_IMG_COLS                  (640)
+
+typedef enum {
+  USE_GAUSSIAN_BLUR,
+  USE_FILTER_2D,
+  USE_SEP_FILTER_2D
+} FilterType_e;
 
 typedef struct {
-  int threadIdx;          /* thread id */
-  int cameraIdx;          /* index of camera */
-  char msgQueueName[64];  /* message queue */
+  int threadIdx;              /* thread id */
+  int cameraIdx;              /* index of camera */
+  char msgQueueName[64];      /* message queue */
+  unsigned int decimateFactor;
+  FilterType_e filterMethod;
 } threadParams_t;
 
 /*---------------------------------------------------------------------------------*/
@@ -79,6 +89,15 @@ int main(int argc, char *argv[])
   syslog(LOG_INFO, "..");
   syslog(LOG_INFO, "...");
   syslog(LOG_INFO, "logging started");
+
+  if (argc < 3) {
+    syslog(LOG_ERR, "incorrect number of arguments provided");
+    cout  << "incorrect number of arguments provided\n\n"
+          << "Usage: prob5 [decimation factor] [filter type]\n"
+          << "decimation factor[0 = original size, 1 = half size, 2 = quarter size]\n"
+          << "filter type [0 = gaussionBlur(), 1 = filter2D(), 2 = sepFilter2D()\n";
+    return -1;
+  }
   
   /*---------------------------------------*/
   /* setup common message queue */
@@ -110,6 +129,27 @@ int main(int argc, char *argv[])
   pthread_t threads[NUM_THREADS];
   threadParams_t threadParams;
   strcpy(threadParams.msgQueueName, msgQueueName);
+  if((threadParams.decimateFactor = atoi(argv[1])) > 2) {
+    syslog(LOG_ERR, "invalid decimation factor provided");
+    cout  << "invalid decimation factor provided\n\n"
+          << "Usage: prob5 [decimation factor] [filter type]\n"
+          << "decimation factor[0 = original size, 1 = half size, 2 = quarter size]\n"
+          << "filter type [0 = gaussionBlur(), 1 = filter2D(), 2 = sepFilter2D()\n";
+    return -1;
+  } else {
+    threadParams.decimateFactor = pow(2.0, threadParams.decimateFactor);
+  }
+  if((threadParams.filterMethod = (FilterType_e)atoi(argv[2])) > 2) {
+    syslog(LOG_ERR, "invalid filter type provided");
+    cout  << "invalid filter type provided\n\n"
+          << "Usage: prob5 [decimation factor] [filter type]\n"
+          << "decimation factor[0 = original size, 1 = half size, 2 = quarter size]\n"
+          << "filter type [0 = gaussionBlur(), 1 = filter2D(), 2 = sepFilter2D()\n";
+    return -1;
+  }
+
+  syslog(LOG_INFO, "decimation factor: %d", threadParams.decimateFactor);
+  syslog(LOG_INFO, "filter type: %d", threadParams.filterMethod);
 
   threadParams.cameraIdx = 0;
   threadParams.threadIdx = READ_THEAD_NUM;
@@ -151,6 +191,7 @@ void *procImgTask(void *arg)
   unsigned int prio;
   int nbytes;
   int id;
+  int cnt = 0;
   
   /* get thread parameters */
   if(arg == NULL) {
@@ -166,7 +207,9 @@ void *procImgTask(void *arg)
     cout << __func__<< " couldn't open queue" << endl;
     return NULL;
   }
-  
+
+  Mat kern1D = getGaussianKernel(15, 2, CV_32F);
+
   syslog(LOG_INFO, "%s started ...", __func__);
   while(!gAbortTest) {
     /* read oldest, highest priority msg from the message queue */
@@ -177,10 +220,22 @@ void *procImgTask(void *arg)
       }
     } else {
       /* process image */
+      if(threadParams.filterMethod == USE_GAUSSIAN_BLUR) {
+        GaussianBlur(inputImg, inputImg, Size(15,15), 2.0);
+      } else if (threadParams.filterMethod == USE_FILTER_2D) {
+        filter2D(inputImg, inputImg, CV_8U, kern1D);
+      } else {
+        sepFilter2D(inputImg, inputImg, CV_8U, kern1D, kern1D);
+      }
       cout << "got image" << endl;
+      char filename[80];
+      sprintf(filename,"inputImg%d.jpg",cnt);
+      imwrite(filename, inputImg);
+      ++cnt;
     }
   }
   syslog(LOG_INFO, "%s exiting", __func__);
+  mq_close(msgQueue);
   return NULL;
 }
 
@@ -213,6 +268,11 @@ void *readImgTask(void*arg)
     syslog(LOG_ERR, "couldn't open camera");
     cout << "couldn't open camera" << endl;
     return NULL;
+  } else {
+    cam.set(CAP_PROP_FRAME_WIDTH, 640 / threadParams.decimateFactor);
+    cam.set(CAP_PROP_FRAME_HEIGHT, 480 / threadParams.decimateFactor);
+    cout  << "cam size (HxW): " << cam.get(CAP_PROP_FRAME_WIDTH)
+          << " x " << cam.get(CAP_PROP_FRAME_HEIGHT) << endl;
   }
 
   syslog(LOG_INFO, "%s started ...", __func__);
@@ -220,6 +280,8 @@ void *readImgTask(void*arg)
   while((!gAbortTest) && (cnt < 10)) {
     /* read image from video */
     cam >> readImg;
+    
+    cout << "readImg cols: " << readImg.cols << " rows: " << readImg.rows << endl;
 
     /* try to insert image but don't block if full
      * so that we loop around and just get the newest */
@@ -236,6 +298,8 @@ void *readImgTask(void*arg)
       cout << "image #" << cnt << " sent at:" << CALC_DT_MSEC(expireTime, startTime) << " msec" << endl;
     }
   }
+  gAbortTest = 1;
   syslog(LOG_INFO, "%s exiting", __func__);
+  mq_close(msgQueue);
   return NULL;
 }
