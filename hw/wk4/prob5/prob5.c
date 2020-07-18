@@ -53,6 +53,9 @@ using namespace std;
 #define PROC_THEAD_NUM 			          (READ_THEAD_NUM + 1)
 #define MAX_IMG_ROWS                  (480)
 #define MAX_IMG_COLS                  (640)
+#define MAX_ITERATIONS                (31)
+#define FILTER_SIZE                   (31)
+#define FILTER_SIGMA                  (2.0)
 
 typedef enum {
   USE_GAUSSIAN_BLUR,
@@ -72,6 +75,10 @@ typedef struct {
 /* PRIVATE FUNCTIONS */
 void *procImgTask(void *arg);
 void *readImgTask(void *arg);
+
+int set_attr_policy(pthread_attr_t *attr, int policy, uint8_t priorityOffset);
+int set_main_policy(int policy, uint8_t priorityOffset);
+void print_scheduler(void);
 
 /*---------------------------------------------------------------------------------*/
 /* GLOBAL VARIABLES */
@@ -123,6 +130,18 @@ int main(int argc, char *argv[])
     return -1;
   }
 
+  
+
+
+  /*----------------------------------------------*/
+  /* set scheduling policy of main and threads */
+  /*----------------------------------------------*/
+  print_scheduler();
+  set_main_policy(SCHED_FIFO, 0);
+  print_scheduler();
+  pthread_attr_t thread_attr;
+  set_attr_policy(&thread_attr, SCHED_FIFO, 0);
+
   /*---------------------------------------*/
   /* create threads */
   /*---------------------------------------*/
@@ -153,12 +172,12 @@ int main(int argc, char *argv[])
 
   threadParams.cameraIdx = 0;
   threadParams.threadIdx = READ_THEAD_NUM;
-  if(pthread_create(&threads[READ_THEAD_NUM], (const pthread_attr_t *)0, readImgTask, (void *)&threadParams) != 0) {
+  if(pthread_create(&threads[READ_THEAD_NUM], &thread_attr, readImgTask, (void *)&threadParams) != 0) {
     syslog(LOG_ERR, "couldn't create thread#%d", READ_THEAD_NUM);
   }
 
   threadParams.threadIdx = PROC_THEAD_NUM;
-  if(pthread_create(&threads[PROC_THEAD_NUM], (const pthread_attr_t *)0, procImgTask, (void *)&threadParams) != 0) {
+  if(pthread_create(&threads[PROC_THEAD_NUM], &thread_attr, procImgTask, (void *)&threadParams) != 0) {
     syslog(LOG_ERR, "couldn't create thread#%d", PROC_THEAD_NUM);
   }
 
@@ -191,6 +210,7 @@ void *procImgTask(void *arg)
   unsigned int prio;
   int nbytes;
   int id;
+  struct timespec prevTime, readTime, procTime;
   int cnt = 0;
   
   /* get thread parameters */
@@ -208,9 +228,16 @@ void *procImgTask(void *arg)
     return NULL;
   }
 
-  Mat kern1D = getGaussianKernel(15, 2, CV_32F);
+  Mat kern1D = getGaussianKernel(FILTER_SIZE, FILTER_SIGMA, CV_32F);
+  Mat kern2D = kern1D * kern1D.t();
 
   syslog(LOG_INFO, "%s started ...", __func__);
+  float cumTime = 0.0f;
+  float cumProcTime = 0.0f;
+  const float deadline_ms = 70.0f;
+  float maxJitter_ms = 0.0f;
+  float cumJitter_ms;
+  clock_gettime(CLOCK_MONOTONIC, &prevTime);
   while(!gAbortTest) {
     /* read oldest, highest priority msg from the message queue */
     if(mq_receive(msgQueue, (char *)&inputImg, MAX_MSG_SIZE, &prio) < 0) {
@@ -220,20 +247,37 @@ void *procImgTask(void *arg)
       }
     } else {
       /* process image */
+      clock_gettime(CLOCK_MONOTONIC, &procTime);
       if(threadParams.filterMethod == USE_GAUSSIAN_BLUR) {
-        GaussianBlur(inputImg, inputImg, Size(15,15), 2.0);
+        GaussianBlur(inputImg, inputImg, Size(FILTER_SIZE, FILTER_SIZE), FILTER_SIGMA);
       } else if (threadParams.filterMethod == USE_FILTER_2D) {
-        filter2D(inputImg, inputImg, CV_8U, kern1D);
+        filter2D(inputImg, inputImg, CV_8U, kern2D);
       } else {
         sepFilter2D(inputImg, inputImg, CV_8U, kern1D, kern1D);
       }
-      cout << "got image" << endl;
-      char filename[80];
-      sprintf(filename,"inputImg%d.jpg",cnt);
-      imwrite(filename, inputImg);
+      clock_gettime(CLOCK_MONOTONIC, &readTime);
+      if(cnt > 0) {
+        cumProcTime += CALC_DT_MSEC(readTime, procTime);
+        cumTime += CALC_DT_MSEC(readTime, prevTime);
+        cumJitter_ms += deadline_ms - CALC_DT_MSEC(readTime, prevTime);
+        if (CALC_DT_MSEC(readTime, prevTime) > deadline_ms) {
+          syslog(LOG_ERR, "deadline missed: %f", CALC_DT_MSEC(readTime, prevTime));
+        }
+      }
       ++cnt;
+      prevTime = readTime;
     }
   }
+  /* ignore first frame */
+  syslog(LOG_INFO, "avg frame time: %f msec",cumTime / (cnt - 1));
+  syslog(LOG_INFO, "avg proc time: %f msec", cumProcTime / (cnt - 1));
+  syslog(LOG_INFO, "avg jitter: %f msec", cumJitter_ms / (cnt - 1));
+  
+  /* save am image for comparison later */
+  char filename[80];
+  sprintf(filename,"filt%d_Size%d.jpg",threadParams.filterMethod, threadParams.decimateFactor);
+  imwrite(filename, inputImg);
+
   syslog(LOG_INFO, "%s exiting", __func__);
   mq_close(msgQueue);
   return NULL;
@@ -277,11 +321,9 @@ void *readImgTask(void*arg)
 
   syslog(LOG_INFO, "%s started ...", __func__);
   clock_gettime(CLOCK_MONOTONIC, &startTime);
-  while((!gAbortTest) && (cnt < 10)) {
+  while((!gAbortTest) && (cnt < MAX_ITERATIONS)) {
     /* read image from video */
     cam >> readImg;
-    
-    cout << "readImg cols: " << readImg.cols << " rows: " << readImg.rows << endl;
 
     /* try to insert image but don't block if full
      * so that we loop around and just get the newest */
@@ -294,12 +336,100 @@ void *readImgTask(void*arg)
       cout << __func__ << " error with mq_send, errno: " << errno << " [" << strerror(errno) << "]" << endl;
     } else {
       ++cnt;
-      syslog(LOG_INFO, "frame #%d sent at: %f", cnt, CALC_DT_MSEC(expireTime, startTime));
-      cout << "image #" << cnt << " sent at:" << CALC_DT_MSEC(expireTime, startTime) << " msec" << endl;
     }
   }
   gAbortTest = 1;
   syslog(LOG_INFO, "%s exiting", __func__);
   mq_close(msgQueue);
   return NULL;
+}
+
+void print_scheduler(void)
+{
+  switch (sched_getscheduler(getpid()))
+  {
+  case SCHED_FIFO:
+    printf("Pthread Policy is SCHED_FIFO\n");
+    syslog(LOG_INFO, "Pthread Policy is SCHED_FIFO");
+    break;
+  case SCHED_OTHER:
+    printf("Pthread Policy is SCHED_OTHER\n");
+    syslog(LOG_INFO, "Pthread Policy is SCHED_OTHER");
+    break;
+  case SCHED_RR:
+    printf("Pthread Policy is SCHED_RR\n");
+    syslog(LOG_INFO, "Pthread Policy is SCHED_RR");
+    break;
+  default:
+    printf("Pthread Policy is UNKNOWN\n");
+    syslog(LOG_INFO, "Pthread Policy is UNKNOWN");
+  }
+}
+
+int set_attr_policy(pthread_attr_t *attr, int policy, uint8_t priorityOffset)
+{
+  int max_prio;
+  int min_prio;
+  struct sched_param param;
+  int rtnCode = 0;
+
+  if(policy < 0) {
+    printf("ERROR: invalid policy #: %d\n", policy);
+    perror("setSchedPolicy");
+    // SCHED_OTHER     --> 0
+    // SCHED_FIFO      --> 1
+    // SCHED_RR        --> 2
+    // SCHED_BATCH     --> 3
+    // SCHED_ISO       --> 4
+    // SCHED_IDLE      --> 5
+    // SCHED_DEADLINE  --> 6
+    return -1;
+  }
+  else if(attr == NULL) {
+    return -1;
+  }
+
+  /* set attribute structure */
+  rtnCode |= pthread_attr_init(attr);
+  rtnCode |= pthread_attr_setinheritsched(attr, PTHREAD_EXPLICIT_SCHED);
+  rtnCode |= pthread_attr_setschedpolicy(attr, policy);
+
+  param.sched_priority = sched_get_priority_max(policy) - priorityOffset;
+  rtnCode |= pthread_attr_setschedparam(attr, &param);
+  if (rtnCode) {
+    printf("ERROR: set_attr_policy, errno: %s\n", strerror(errno));
+    return -1;
+  }
+  return 0;
+}
+
+int set_main_policy(int policy, uint8_t priorityOffset)
+{
+  int rtnCode;
+  int max_prio;
+  int min_prio;
+  struct sched_param param;
+  pthread_attr_t attr;
+
+  if(policy < 0) {
+    printf("ERROR: invalid policy #: %d\n", policy);
+    perror("setSchedPolicy");
+    return -1;
+  }
+
+  /* this sets the policy/priority for our process */
+  rtnCode = sched_getparam(getpid(), &param);
+  if (rtnCode) {
+    printf("ERROR: sched_getparam (in set_main_policy)  rc is %d, errno: %s\n", rtnCode, strerror(errno));
+    return -1;
+  }
+
+  /* update scheduler */
+  param.sched_priority = sched_get_priority_max(policy) - priorityOffset;
+  rtnCode = sched_setscheduler(getpid(), policy, &param);
+  if (rtnCode) {
+    printf("ERROR: sched_setscheduler (in set_main_policy) rc is %d, errno: %s\n", rtnCode, strerror(errno));
+    return -1;
+  }
+  return 0;
 }
