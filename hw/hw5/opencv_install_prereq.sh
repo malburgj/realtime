@@ -46,26 +46,3 @@ cd $cwd
 OPENCV_VERSION=3.4.10
 git clone -b ${OPENCV_VERSION} https://github.com/opencv/opencv.git
 git clone -b ${OPENCV_VERSION} https://github.com/opencv/opencv_contrib.git
-
-mkdir opencv/build
-
-cd $cwd/opencv/build
-
-cmake -D CMAKE_BUILD_TYPE=RELEASE \
--D CMAKE_INSTALL_PREFIX=/usr/local \
--D OPENCV_EXTRA_MODULES_PATH=$cwd/opencv_contrib/modules \
--D OPENCV_ENABLE_NONFREE=ON \
--D WITH_TBB=ON \
--D WITH_OPENMP=ON \
--D WITH_IPP=ON \
--D WITH_V4L=ON \
--D WITH_OPENGL=ON \
--D WITH_OPENCL=ON \
--D WITH_EIGEN=ON \
--D ENABLE_NEON=ON \
--D ENABLE_VFPV3=ON \
-..
-
-make -j2
-sudo make install
-cd $cwd
