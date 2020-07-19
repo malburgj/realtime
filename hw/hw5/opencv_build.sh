@@ -1,13 +1,14 @@
 cd ~/tmp/opencv_repos
 cwd=$(pwd)
 
+cd cwd
 mkdir opencv/build
 cd $cwd/opencv/build
 
 cmake -D CMAKE_BUILD_TYPE=RELEASE \
 -D CMAKE_INSTALL_PREFIX=/usr/local \
 -D OPENCV_EXTRA_MODULES_PATH=$cwd/opencv_contrib/modules \
--D OPENCV_ENABLE_NONFREE=ON \
+-D OPENCV_ENABLE_NONFREE=OFF \
 -D WITH_TBB=ON \
 -D WITH_V4L=ON \
 -D WITH_QT=ON \
@@ -21,13 +22,9 @@ cmake -D CMAKE_BUILD_TYPE=RELEASE \
 -D BUILD_TESTS=OFF \
 -D INSTALL_C_EXAMPLES=OFF \
 -D INSTALL_PYTHON_EXAMPLES=OFF \
--D BUILD_EXAMPLES=OFF \
--D WITH_PYTHON=OFF \
--D WITH_JAVA=OFF \
--D BUILD_opencv_java=OFF \
--D BUILD_opencv_python=OFF \
+-D BUILD_EXAMPLES=OFF
 ..
 
-make -j4
+make -j1
 sudo make install
 cd $cwd
