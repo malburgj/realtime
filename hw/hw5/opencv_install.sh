@@ -1,18 +1,43 @@
-sudo apt-get install build-essential cmake pkg-config \
-libavcodec-dev libavformat-dev libswscale-dev libgstreamer0.10-dev \
-libgstreamer-plugins-base0.10-dev libgtk2.0-dev libpng-dev \
-libjpeg-dev libopenexr-dev libtiff-dev libwebp-dev libxine2-dev \
-libjasper-dev libdc1394-22-dev libv4l-dev libtbb2 libtbb-dev \
-qt5-default libeigen3-dev yasm checkinstall libjpeg8-dev libpng12-dev \
-libtiff5-dev libfaac-dev libmp3lame-dev libtheora-dev libvorbis-dev \
-libxvidcore-dev libopencore-amrnb-dev libopencore-amrwb-dev \
-libavresample-dev -y
+sudo apt-get update
 
-sudo apt-get remove x264
+sudo apt-get install build-essential cmake pkg-config -y
+sudo apt-get install libavcodec-dev -y
+sudo apt-get install libavformat-dev -y
+sudo apt-get install libswscale-dev -y
+sudo apt-get install libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev -y
 
-sudo apt-get install x264 libx264-dev v4l-utils libprotobuf-dev protobuf-compiler \
-libgoogle-glog-dev libgflags-dev libgphoto2-dev libhdf5-dev \
-doxygen gfortran libatlas-base-dev
+sudo apt-get install libgtk2.0-dev -y
+sudo apt-get install libpng-dev libpng12-dev -y
+sudo apt-get install libjpeg-dev libjpeg8-dev -y
+sudo apt-get install libopenexr-dev -y
+sudo apt-get install libtiff-dev libtiff5-dev -y
+sudo apt-get install libwebp-dev -y
+sudo apt-get install libxine2-dev -y
+sudo apt-get install libjasper-dev -y
+sudo apt-get install libdc1394-22-dev -y
+sudo apt-get install libv4l-dev v4l-utils -y
+sudo apt-get install libtbb2 libtbb-dev -y
+sudo apt-get install libeigen3-dev -y
+sudo apt-get install yasm -y
+sudo apt-get install checkinstall -y
+sudo apt-get install libfaac-dev -y
+sudo apt-get install libmp3lame-dev -y
+sudo apt-get install libtheora-dev -y
+sudo apt-get install libvorbis-dev -y
+sudo apt-get install libxvidcore-dev -y
+sudo apt-get install libopencore-amrnb-dev libopencore-amrwb-dev -y
+sudo apt-get install libavresample-dev -y
+
+sudo apt-get remove x264 -y
+sudo apt-get install x264 libx264-dev -y
+sudo apt-get install libprotobuf-dev -y
+sudo apt-get install protobuf-compiler -y
+sudo apt-get install libgoogle-glog-dev -y
+sudo apt-get install libgflags-dev -y
+sudo apt-get install libgphoto2-dev -y
+sudo apt-get install libhdf5-dev -y
+sudo apt-get install gfortran -y
+sudo apt-get install libatlas-base-dev -y
 
 mkdir -p ~/tmp/opencv_repos && cd ~/tmp/opencv_repos
 cwd=$(pwd)
